@@ -302,6 +302,8 @@ $ pip install Django
     頁面可以做一些針對polls的動作，同API操作
 
 
+* test
+
 Reference:
 
 https://docs.djangoproject.com/en/2.2/intro/tutorial01/
