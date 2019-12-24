@@ -15,6 +15,8 @@ $ pip install Django
 ```
 
 # Part 1
+安裝及運行簡單app
+
 * 確認版本是2.2
 
     python -m django --version
@@ -74,6 +76,7 @@ $ pip install Django
     $ python manage.py runserver
     ```
 # Part 2
+熟悉建model與DM及必備的相關設定
 
 * Database setup: 
     
@@ -302,10 +305,191 @@ $ pip install Django
     頁面可以做一些針對polls的動作，同API操作
 
 
-* test
+# Part 3
 
-Reference:
+
+Django的URLconfs maps URL patterns to views.
+
+* Writing more views
+
+    polls/views.py.
+
+    ```
+    def detail(request, question_id):
+        return HttpResponse("You're looking at question %s." % question_id)
+
+    def results(request, question_id):
+        response = "You're looking at the results of question %s."
+        return HttpResponse(response % question_id)
+
+    def vote(request, question_id):
+        return HttpResponse("You're voting on question %s." % question_id)
+    ```
+
+    polls.urls 讓url可以對應到views.py內的view
+
+
+    ```
+    from django.urls import path
+
+    from . import views
+
+    urlpatterns = [
+        # ex: /polls/
+        path('', views.index, name='index'),
+        # ex: /polls/5/
+        path('<int:question_id>/', views.detail, name='detail'),
+        # ex: /polls/5/results/
+        path('<int:question_id>/results/', views.results, name='results'),
+        # ex: /polls/5/vote/
+        path('<int:question_id>/vote/', views.vote, name='vote'),
+    ]
+    ```
+
+
+* Write views that actually do something
+
+Each view is responsible for doing one of two things: returning an HttpResponse object containing the content for the requested page, or raising an exception such as Http404. The rest is up to you.
+
+polls/views.py
+```
+from django.http import HttpResponse
+
+from .models import Question
+
+
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    output = ', '.join([q.question_text for q in latest_question_list])
+    return HttpResponse(output)
+
+# Leave the rest of the views (detail, results, vote) unchanged
+```
+
+但上面的結果很難看，因此若要設計版面，可透過template設計
+
+polls/templates/polls/index.html
+
+```
+{% if latest_question_list %}
+    <ul>
+    {% for question in latest_question_list %}
+        <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No polls are available.</p>
+{% endif %}
+```
+
+polls/views.py
+
+```
+from django.http import HttpResponse
+from django.template import loader
+
+from .models import Question
+
+
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    template = loader.get_template('polls/index.html')
+    context = {
+        'latest_question_list': latest_question_list,
+    }
+    return HttpResponse(template.render(context, request))
+```
+
+* A shortcut: render()
+
+render會直接回傳HttpResponse
+
+```
+from django.shortcuts import render
+
+from .models import Question
+
+
+def index(request):
+    latest_question_list = Question.objects.order_by('-pub_date')[:5]
+    context = {'latest_question_list': latest_question_list}
+    return render(request, 'polls/index.html', context)
+```
+
+* Raising a 404 error
+
+如果question_id不存在，就raise 404
+
+```
+from django.http import Http404
+from django.shortcuts import render
+
+from .models import Question
+# ...
+def detail(request, question_id):
+    try:
+        question = Question.objects.get(pk=question_id)
+    except Question.DoesNotExist:
+        raise Http404("Question does not exist")
+    return render(request, 'polls/detail.html', {'question': question})
+```
+
+polls/templates/polls/detail.html
+
+```{{ question }}```
+
+* A shortcut: get_object_or_404()
+
+polls/views.py¶
+
+```
+from django.shortcuts import get_object_or_404, render
+
+from .models import Question
+# ...
+def detail(request, question_id):
+    question = get_object_or_404(Question, pk=question_id)
+    return render(request, 'polls/detail.html', {'question': question})
+```
+
+
+* Use the template system
+
+原本url在polls/index.html的寫法
+
+```
+<li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+```
+
+若是使用原本的url寫法，當要修改url的格式時，可能會需要修改大量的template檔案，因此改為
+
+```
+<li><a href="{% url 'detail' question.id %}">{{ question.question_text }}</a></li>
+```
+
+其中'detail'是定義在polls.urls module，可直接修改polls.urls內的格式為polls/specifics/12/
+
+```
+# added the word 'specifics'
+path('specifics/<int:question_id>/', views.detail, name='detail'),
+```
+
+
+* Namespacing URL names
+
+當有多數個app時，DJ會無法分辨url，因此必須在urls.py新增app_name = 'polls'在urlpatterns之前
+
+並將template的html檔(polls/templates/polls/index.html)的url寫法改為
+
+```
+<li><a href="{% url 'polls:detail' question.id %}">{{ question.question_text }}</a></li>
+```
+
+
+# Reference:
 
 https://docs.djangoproject.com/en/2.2/intro/tutorial01/
 
 <https://openhome.cc/Gossip/CodeData/PythonTutorial/DjangoPy3.html>
+
+
